@@ -48,12 +48,12 @@ func (c *Cache) reapLoop(interval time.Duration) {
 }
 
 func (c *Cache) reap(interval time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	timeAgo := time.Now().UTC().Add(-interval)
 	for k, v := range c.cache {
 		if v.createdAt.Before(timeAgo) {
-			c.mu.Lock()
 			delete(c.cache, k)
-			c.mu.Unlock()
 		}
 	}
 }
