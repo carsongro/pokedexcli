@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-func commandHelp() error {
+func commandHelp(cfg *config) error {
 	fmt.Println("")
 	fmt.Println("Welcome to the Pokédex!")
 	fmt.Println("Usage:")
