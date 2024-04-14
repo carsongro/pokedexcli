@@ -7,6 +7,53 @@ import (
 	"net/http"
 )
 
+func performRequest[T any](url string, client *Client, responseType T) (T, error) {
+	// Create request
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return responseType, err
+	}
+
+	// check the cache
+	dat, ok := client.cache.Get(url)
+	if ok {
+		var respObj T
+		err := json.Unmarshal(dat, &respObj)
+		if err != nil {
+			return responseType, err
+		}
+		return respObj, nil
+	}
+
+	// Execute request
+	resp, err := client.httpClient.Do(req)
+	if err != nil {
+		return responseType, err
+	}
+
+	if resp.StatusCode > 399 {
+		return responseType, fmt.Errorf("bad status code: %v", resp.StatusCode)
+	}
+
+	// Get data from request
+	data, err := io.ReadAll(resp.Body)
+	defer resp.Body.Close()
+	if err != nil {
+		return responseType, err
+	}
+
+	client.cache.Add(url, data)
+
+	// Decode type from data
+	var respObj T
+	err = json.Unmarshal(data, &respObj)
+	if err != nil {
+		return responseType, err
+	}
+
+	return respObj, nil
+}
+
 func (c *Client) ListLocationAreas(pageURL *string) (LocationAreasResp, error) {
 	endpoint := "/location-area"
 	fullURL := baseURL + endpoint
@@ -15,50 +62,22 @@ func (c *Client) ListLocationAreas(pageURL *string) (LocationAreasResp, error) {
 		fullURL = *pageURL
 	}
 
-	// check the cache
-	dat, ok := c.cache.Get(fullURL)
-	if ok {
-		fmt.Println("cache hit")
-		locationAreasResp := LocationAreasResp{}
-		err := json.Unmarshal(dat, &locationAreasResp)
-		if err != nil {
-			return LocationAreasResp{}, err
-		}
-		return locationAreasResp, nil
-	}
-	fmt.Println("cache miss")
-
-	// Create request
-	req, err := http.NewRequest("GET", fullURL, nil)
+	var response LocationAreasResp
+	response, err := performRequest(fullURL, c, response)
 	if err != nil {
-		return LocationAreasResp{}, err
+		panic(err)
 	}
+	return response, nil
+}
 
-	// Execute request
-	resp, err := c.httpClient.Do(req)
+func (c *Client) GetLocationArea(locationAreaName string) (LocationArea, error) {
+	endpoint := "/location-area/" + locationAreaName
+	fullURL := baseURL + endpoint
+
+	var response LocationArea
+	response, err := performRequest(fullURL, c, response)
 	if err != nil {
-		return LocationAreasResp{}, err
+		panic(err)
 	}
-
-	if resp.StatusCode > 399 {
-		return LocationAreasResp{}, fmt.Errorf("bad status code: %v", resp.StatusCode)
-	}
-
-	// Get data from request
-	data, err := io.ReadAll(resp.Body)
-	defer resp.Body.Close()
-	if err != nil {
-		return LocationAreasResp{}, err
-	}
-
-	c.cache.Add(fullURL, data)
-
-	// Decode type from data
-	locationAreasResp := LocationAreasResp{}
-	err = json.Unmarshal(data, &locationAreasResp)
-	if err != nil {
-		return LocationAreasResp{}, err
-	}
-
-	return locationAreasResp, nil
+	return response, nil
 }
